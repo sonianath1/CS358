@@ -1,31 +1,13 @@
-#Sonia Nath - CS358 - Final Interpreter Project
+#onia Nath - CS358 - Final Interpreter Project
 # This file will have a domain extension of 
 # images. 
 
-'''
-Domain Specific Extension: Images
-
-This extension is the image. It allows users to:
-    - load images from files
-    - merge them to be side by side (if height equals for both)
-    - rotate them by 90 degress
-Whatever you choose to do with the images, it is saved in "answer.png"
-and can be viewed in the diectory. 
-
-I want to credit Prof Yao Li for his interp_arith_turtle.py template.
-It was helpful in getting this project done and understanding how to 
-use match cases with an interpreter.
-
-To run the tests, uncomment it at the bottom of the file. It was getting annoying 
-to have images generate when i was just trying to test some functions
-in command line so I commented them out to make testing less annoying. 
-'''
 
 from dataclasses import dataclass
 from PIL import Image as pimage
 
-type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | ImageValue | Merge | Rotate | And | Or | Not | Eq | Lt | If
-type Value = int | bool | ImageValue
+type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | ImageValue | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App
+type Value = int | bool | ImageValue | Closure
 
 @dataclass
 class Add():
@@ -100,31 +82,6 @@ class Not():
     subexpr: Expr
     def __str__(self) -> str:
         return f"(not {self.subexpr})"
-
-@dataclass
-class ImageLit():
-    name: str
-    def __str__(self) -> str:
-        return f"img({self.name})"
-
-@dataclass
-class ImageValue():
-    image: pimage.Image
-
-@dataclass
-class Merge():
-    left: Expr
-    right: Expr
-    def __str__(self) -> str:
-        return f"(merge {self.left} and {self.right})"
-
-
-@dataclass
-class Rotate():
-    subexpr: Expr
-    def __str__(self) -> str:
-        return f"(Rotate {self.subexpr} by 90 degrees)"
-
 @dataclass
 class Eq():
     left: Expr
@@ -147,8 +104,61 @@ class If():
     def __str__(self) -> str:
         return f"(if {self.cond} then {self.then} else {self._else})"
 
+@dataclass
+class LetFun():
+    name: str
+    param: str
+    bodyexpr: Expr
+    inexpr: Expr
+    def __str__(self) -> str:
+        return f"letfun {self.name} ({self.param}) = {self.bodyexpr} in {self.inexpr} end"
+
+
+@dataclass
+class App():
+    fun: Expr
+    arg: Expr
+    def __str__(self) -> str:
+        return f"({self.fun} ({self.arg}))"
+
+
+#----------------- IMAGE ----------------------------
+@dataclass
+class ImageLit():
+    name: str
+    def __str__(self) -> str:
+        return f"img({self.name})"
+
+@dataclass
+class ImageValue():
+    image: pimage.Image
+    def __str__(self) -> str:
+        return f"img({self.image.show})"
+
+@dataclass
+class Merge():
+    left: Expr
+    right: Expr
+    def __str__(self) -> str:
+        return f"(merge {self.left} and {self.right})"
+
+
+@dataclass
+class Rotate():
+    subexpr: Expr
+    def __str__(self) -> str:
+        return f"(Rotate {self.subexpr} by 90 degrees)"
+
 type Binding[V] = tuple[str,V]  # this tuple type is always a pair
 type Env[V] = tuple[Binding[V], ...] # this tuple type has arbitrary length 
+
+
+@dataclass
+class Closure:
+    param: str
+    body: Expr
+    env: Env[Value]
+
 
 from typing import Any
 emptyEnv : Env[Any] = ()  # the empty environment has no bindings
@@ -179,8 +189,9 @@ def eval(e: Expr) -> Value:
 
 
 def evalInEnv(env: Env[int], e:Expr) -> Value:
+    print(f"evalInEnv: {repr(e)}") 
     match e:
-       
+
         case Add(l,r):
             match (evalInEnv(env,l), evalInEnv(env,r)):
                 case (bool(), _) | (_, bool()):
@@ -200,7 +211,10 @@ def evalInEnv(env: Env[int], e:Expr) -> Value:
                     raise EvalError("subtraction of non-integers")
 
         case Mul(l,r):
-            match (evalInEnv(env,l), evalInEnv(env,r)):
+            lv = evalInEnv(env,l)
+            rv = evalInEnv(env,r)
+            print(f"MUL: {lv} (type {type(lv)}) * {rv} (type {type(rv)})")
+            match (lv, rv):
                 case (bool(), _) | (_, bool()):
                     raise EvalError("multiplication of non-integers")
                 case (int(lv), int(rv)):
@@ -228,12 +242,14 @@ def evalInEnv(env: Env[int], e:Expr) -> Value:
                 case _:
                     raise EvalError("negation of non-integer")
 
-        case (Lit(lit)):
+        case Lit(lit):
             match lit:  # two-level matching keeps type-checker happy
                 case bool(b):
                     return b
                 case int(i):
                     return i
+                case _:
+                    raise EvalError(f"unknown literal type: {type(lit)}")
         case Not(s):
             match evalInEnv(env, s):
                 case bool(b):
@@ -312,6 +328,22 @@ def evalInEnv(env: Env[int], e:Expr) -> Value:
                 case _:
                     raise EvalError("if condition must be a boolean")
 
+        case LetFun(n,p,b,i):
+            c = Closure(p,b,env)
+            newEnv = extendEnv(n,c,env)
+            c.env = newEnv    
+            return evalInEnv(newEnv,i)
+
+        case App(f,a):
+            fun = evalInEnv(env,f)
+            arg = evalInEnv(env,a)
+            match fun:
+                case Closure(p,b,cenv):
+                    newEnv = extendEnv(p,arg,cenv) 
+                    return evalInEnv(newEnv,b)
+                case _:
+                    raise EvalError("application of non-function")
+
         # Image cases
         case ImageLit(n):
             image = pimage.open(n)
@@ -351,18 +383,49 @@ def run(e: Expr):
             img.save("answer.png")
             img.show()  # opens a viewer automatically
 '''
+Domain Specific Extension: Images
+
+This extension is images. It allows users to:
+
+    - load images from files
+    - merge them to be side by side (if height equals for both)
+    - rotate them by 90 degress
+
+Whatever you choose to do with the images, it is saved in "answer.png"
+and can be viewed in the diectory. 
+
+I want to credit Prof Yao Li for his interp_arith_turtle.py template.
+It was helpful in getting this project done and understanding how to 
+use match cases with an interpreter.
+
+To run the tests, uncomment it at the bottom of the file. It was getting annoying 
+to have images generate when i was just trying to test some functions
+in command line so I commented them out to make testing less annoying. 
+
+To test with the Pillow Pakcage, make sure to have the latest version of python and then run:
+
+    pip3 install Pillow
+
+I have inclided a beautiful photo meant for testing purposes. The testing below
+references it. If you comment out line 377, that test should trigger an exception due to
+the photos not being the same height.
+
+It worjs
+'''
+
+'''
 # test loading a single image
-run(ImageLit("cutephoto.jpg"))
+run(ImageLit("images/cutephoto.jpg"))
 
 # test rotating
-run(Rotate(ImageLit("cutephoto.jpg")))
+run(Rotate(ImageLit("images/cutephoto.jpg")))
 
-# test merging two images
-#run(Merge(ImageLit("cutephoto.jpg"), ImageLit("pfp.jpg")))
 
-run(Merge(ImageLit("cutephoto.jpg"), ImageLit("cutephoto.jpg")))
+run(Merge(ImageLit("images/cutephoto.jpg"), ImageLit("images/cutephoto.jpg")))
 
 # test using let with images
-run(Let("x", ImageLit("cutephoto.jpg"), Rotate(Name("x"))))
-'''
+run(Let("x", ImageLit("images/cutephoto.jpg"), Rotate(Name("x"))))
+
+# test merging two images
+#run(Merge(ImageLit("images/cutephoto.jpg"), ImageLit("images/pfp.jpg"))) '''
 
