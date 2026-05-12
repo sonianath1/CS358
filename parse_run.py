@@ -4,8 +4,8 @@ from lark import Lark, Token, ParseTree, Transformer
 from lark.exceptions import VisitError
 from pathlib import Path
 
-#parser = Lark(Path('expr.lark').read_text(),start='expr',parser='earley',ambiguity='explicit')
-parser = Lark(Path('expr.lark').read_text(),start='expr',parser='lalr',strict=True)
+parser = Lark(Path('expr.lark').read_text(),start='expr',parser='earley',ambiguity='explicit')
+#parser = Lark(Path('expr.lark').read_text(),start='expr',parser='lalr',strict=True)
 
 class ParseError(Exception):
     pass
@@ -109,9 +109,11 @@ def parse_and_run(s: str):
         ast = genAST(t)
         print("raw AST:", repr(ast))
         run(ast)
-        print("\n₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊\n")
+        print("\n\n\n₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊\n")
     except AmbiguousParse:
+        print("\n\n\n-----------------------------------------------------")
         print("ambiguous parse")
+        print("-----------------------------------------------------")
     except ParseError as e:
         print("parse error:", e)
 
@@ -133,17 +135,19 @@ parse_and_run("3 == 3")
 parse_and_run("2 < 5")
 parse_and_run("if 3 < 10 then 42 else 0")
 
+
 # ₊✩‧₊˚౨ৎ˚₊✩‧₊ FUNCTIONS ₊✩‧₊˚౨ৎ˚₊✩‧₊
 parse_and_run("letfun double(x) = x + x in double(7) end")
 parse_and_run("letfun square(n) = n * n in square(5) end")
+parse_and_run("let x = 10 in letfun add(y) = x + y in add(5) end end")
 
 
 # ₊✩‧₊˚౨ৎ˚₊✩‧₊ IMAGES ₊✩‧₊˚౨ৎ˚₊✩‧₊
 parse_and_run('img("images/cutephoto.jpg")')
-parse_and_run('rotate(img("images/cutephoto.jpg"))')
-parse_and_run('merge(img("images/cutephoto.jpg"), img("images/cutephoto.jpg"))')
-parse_and_run('let pic = img("images/cutephoto.jpg") in rotate(pic) end')
-parse_and_run('letfun spin(p) = rotate(p) in spin(img("images/cutephoto.jpg")) end')
-parse_and_run('letfun rot180(p) = rotate(rotate(p)) in rot180(img("images/cutephoto.jpg")) end')
-parse_and_run('let a = img("images/cutephoto.jpg") in rotate(merge(a, a)) end')
-parse_and_run('if true then rotate(img("images/cutephoto.jpg")) else img("images/cutephoto.jpg")')
+parse_and_run('rotate[img("images/cutephoto.jpg")]')
+parse_and_run('merge[img("images/cutephoto.jpg"), img("images/cutephoto.jpg")]')
+parse_and_run('let pic = img("images/cutephoto.jpg") in rotate[pic] end')
+parse_and_run('letfun spin(p) = rotate[p] in spin(img("images/cutephoto.jpg")) end')
+parse_and_run('letfun rot180(p) = rotate[rotate[p]] in rot180(img("images/cutephoto.jpg")) end')
+parse_and_run('let a = img("images/cutephoto.jpg") in rotate[merge[a, a]] end')
+parse_and_run('if true then rotate[img("images/cutephoto.jpg")] else img("images/cutephoto.jpg")')

@@ -1,7 +1,7 @@
 %import common.INT -> INT
 %import common.WS
-%import common.CNAME -> ID
 %import common.ESCAPED_STRING -> STRING
+%import common.CNAME -> ID
 %ignore WS
 
 
@@ -38,11 +38,10 @@
 
 
 ?atom: INT -> int_lit
-     | STRING -> string_lit
      | ID -> id
      | "(" expr ")"
      | "let" ID "=" expr "in" expr "end" -> let_expr
      | "letfun" ID "(" ID ")" "=" expr "in" expr "end" -> letfun_expr
      | "img" "(" STRING ")" -> img_lit
-     | "rotate" "(" expr ")" -> rotate_expr
-     | "merge" "(" expr "," expr ")" -> merge_expr
+     | "rotate" "[" expr "]" -> rotate_expr
+     | "merge" "[" expr "," expr "]" -> merge_expr
