@@ -4,7 +4,8 @@ from lark import Lark, Token, ParseTree, Transformer
 from lark.exceptions import VisitError
 from pathlib import Path
 
-parser = Lark(Path('expr.lark').read_text(),start='expr',ambiguity='explicit')
+#parser = Lark(Path('expr.lark').read_text(),start='expr',parser='earley',ambiguity='explicit')
+parser = Lark(Path('expr.lark').read_text(),start='expr',parser='lalr',strict=True)
 
 class ParseError(Exception):
     pass
@@ -44,37 +45,47 @@ class ToExpr(Transformer[Token,Expr]):
     def let_expr(self, args:tuple[Token,Expr,Expr]) -> Expr:
         return Let(args[0].value,args[1],args[2])
     def id(self, args:tuple[Token]) -> Expr:
-        return Name(args[0].value)
+        name = args[0].value
+
+        if name == "true":
+            return Lit(True)
+        if name == "false":
+            return Lit(False)
+        return Name(name)
+
     def int_lit(self,args:tuple[Token]) -> Expr:
         return Lit(int(args[0].value))
-    def ifnz(self,args:tuple[Expr,Expr,Expr]) -> Expr:
+    def string_lit(self, args) -> Expr:
+        return Lit(args[0].value[1:-1])
+    def if_expr(self,args:tuple[Expr,Expr,Expr]) -> Expr:
         return If(args[0],args[1],args[2])
 
     # ₊✩‧₊˚౨ৎ˚₊✩‧₊     IMAGE CLASS      ₊✩‧₊˚౨ৎ˚₊✩‧₊
     def img_lit(self, args) -> ImageValue:
+        #        print(f"img_lit args: {args}, value: {args[0]}")
         filename = args[0].value[1:-1]
         return ImageLit(filename)
     def merge_expr(self, args) -> ImageValue:
         return Merge(args[0], args[1])
-    def rotate(self, args) -> ImageValue:
+    def rotate_expr(self, args) -> ImageValue:
         return Rotate(args[0])
     
-    def _and(self, args) -> Expr:
+    def and_e(self, args) -> Expr:
         return And(args[0], args[1])
-    def _or(self, args) -> Expr:
+    def or_e(self, args) -> Expr:
         return Or(args[0], args[1])
-    def _not(self, args) -> Expr:
+    def not_e(self, args) -> Expr:
         return Not(args[0])
-    def _eq(self, args) -> Expr:
+    def eq(self, args) -> Expr:
         return Eq(args[0],args[1])
-    def _lt(self, args) -> Expr:
+    def lt(self, args) -> Expr:
         return Lt(args[0], args[1])
 
 
     def letfun_expr(self,args:tuple[Token,Token,Expr,Expr]) -> Expr:
         return LetFun(args[0].value,args[1].value,args[2],args[3])
     def app(self,args:tuple[Expr,Expr]) -> Expr:
-        return App(args[0],args[1])
+        return App(args[0], args[1])
     def _ambig(self,_) -> Expr:    # ambiguity marker
         raise AmbiguousParse()
 
@@ -89,54 +100,45 @@ def genAST(t:ParseTree) -> Expr:
             raise AmbiguousParse()
         else:
             raise e
+
 def parse_and_run(s: str):
     try:
-        t   = parse(s)
+        t = parse(s)
+        print("pretty:")
+        print(t.pretty())
         ast = genAST(t)
+        print("raw AST:", repr(ast))
         run(ast)
+        print("\n₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊₊✩‧₊˚౨ৎ˚₊✩‧₊\n")
     except AmbiguousParse:
         print("ambiguous parse")
     except ParseError as e:
         print("parse error:", e)
-'''
-def driver():
-    while True:
-        try:
-            s = input('expr: ')
-            t = parse(s)
-            print("raw:", t)
-            print("pretty:")
-            print(t.pretty())
-            ast = genAST(t)
-            print("raw AST:", repr(ast))  # use repr() to avoid str() pretty-printing
-            run(ast)                      # pretty-prints and executes the AST
-        except AmbiguousParse:
-            print("ambiguous parse")
-        except ParseError as e:
-            print("parse error:")
-            print(e)
-        except EOFError:
-            break
-'''
-# ── Tests ─────────────────────────────────────────────────────────────────────
 
-# Core arithmetic
+#CREDIT TO PROF YAO LI
+# Thank you for providing code strcuture 
+# to work off of and for guiding us through
+#class so we can understand it. 
+
+
+# ₊✩‧₊˚౨ৎ˚₊✩‧₊ CORE ₊✩‧₊˚౨ৎ˚₊✩‧₊
 parse_and_run("1 + 2 * 3")
 parse_and_run("(10 - 4) / 2")
 parse_and_run("let x = 5 in x + x end")
 
-# Booleans and comparisons
+#₊✩‧₊˚౨ৎ˚₊✩‧₊ BOOL & CMP ₊✩‧₊˚౨ৎ˚₊✩‧₊ 
 parse_and_run("true || false")
 parse_and_run("!false && true")
 parse_and_run("3 == 3")
 parse_and_run("2 < 5")
 parse_and_run("if 3 < 10 then 42 else 0")
 
-# Functions
+# ₊✩‧₊˚౨ৎ˚₊✩‧₊ FUNCTIONS ₊✩‧₊˚౨ৎ˚₊✩‧₊
 parse_and_run("letfun double(x) = x + x in double(7) end")
 parse_and_run("letfun square(n) = n * n in square(5) end")
 
-# Domain-specific image tests
+
+# ₊✩‧₊˚౨ৎ˚₊✩‧₊ IMAGES ₊✩‧₊˚౨ৎ˚₊✩‧₊
 parse_and_run('img("images/cutephoto.jpg")')
 parse_and_run('rotate(img("images/cutephoto.jpg"))')
 parse_and_run('merge(img("images/cutephoto.jpg"), img("images/cutephoto.jpg"))')
@@ -145,5 +147,3 @@ parse_and_run('letfun spin(p) = rotate(p) in spin(img("images/cutephoto.jpg")) e
 parse_and_run('letfun rot180(p) = rotate(rotate(p)) in rot180(img("images/cutephoto.jpg")) end')
 parse_and_run('let a = img("images/cutephoto.jpg") in rotate(merge(a, a)) end')
 parse_and_run('if true then rotate(img("images/cutephoto.jpg")) else img("images/cutephoto.jpg")')
-
-#driver() 

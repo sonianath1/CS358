@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from PIL import Image as pimage
 
-type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | ImageValue | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App
+type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App
 type Value = int | bool | ImageValue | Closure
 
 @dataclass
@@ -189,7 +189,6 @@ def eval(e: Expr) -> Value:
 
 
 def evalInEnv(env: Env[int], e:Expr) -> Value:
-    print(f"evalInEnv: {repr(e)}") 
     match e:
 
         case Add(l,r):
@@ -213,7 +212,6 @@ def evalInEnv(env: Env[int], e:Expr) -> Value:
         case Mul(l,r):
             lv = evalInEnv(env,l)
             rv = evalInEnv(env,r)
-            print(f"MUL: {lv} (type {type(lv)}) * {rv} (type {type(rv)})")
             match (lv, rv):
                 case (bool(), _) | (_, bool()):
                     raise EvalError("multiplication of non-integers")
@@ -428,4 +426,5 @@ run(Let("x", ImageLit("images/cutephoto.jpg"), Rotate(Name("x"))))
 
 # test merging two images
 #run(Merge(ImageLit("images/cutephoto.jpg"), ImageLit("images/pfp.jpg"))) '''
+#ID: /(?!img$)(?!rotate$)(?!merge$)(?!true$)(?!false$)[a-zA-Z_][a-zA-Z0-9_]*/
 
