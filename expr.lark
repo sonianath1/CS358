@@ -5,33 +5,55 @@
 %ignore WS
 
 
+?expr: seq_expr
 
-?expr: "if" expr "then" expr "else" expr -> if_expr
-     | or_expr
+
+?seq_expr: assign_expr ";" seq_expr -> seq
+         | assign_expr
+
+
+?assign_expr: ID ":=" assign_expr -> assign
+            | show_expr
+
+?show_expr: "show" "(" expr ")" -> show_e
+          | "show" assign_expr -> show_e
+          | if_expr
+
+
+?if_expr: "if" expr "then" expr "else" assign_expr -> if_expr
+        | or_expr
+
 
 ?or_expr: or_expr "||" and_expr -> or_e
         | and_expr
 
+
 ?and_expr: and_expr "&&" not_expr -> and_e
          | not_expr
 
+
 ?not_expr: "!" not_expr -> not_e
          | cmp_expr
+
 
 ?cmp_expr: add_expr "==" add_expr -> eq
          | add_expr "<"  add_expr -> lt
          | add_expr
 
+
 ?add_expr: add_expr "+" mul_expr -> plus
          | add_expr "-" mul_expr -> minus
          | mul_expr
+
 
 ?mul_expr: mul_expr "*" unary_expr -> times
          | mul_expr "/" unary_expr -> divide
          | unary_expr
 
+
 ?unary_expr: "-" unary_expr -> neg
            | app_expr
+
 
 ?app_expr: app_expr "(" expr ")" -> app
          | atom
@@ -45,3 +67,5 @@
      | "img" "(" STRING ")" -> img_lit
      | "rotate" "[" expr "]" -> rotate_expr
      | "merge" "[" expr "," expr "]" -> merge_expr
+     | "blend" "[" expr "," expr "," expr "]" -> blend_expr
+     | "flip" "[" expr "]" -> flip_expr

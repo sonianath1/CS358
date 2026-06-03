@@ -6,8 +6,8 @@
 from dataclasses import dataclass
 from PIL import Image as pimage
 
-type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App
-type Value = int | bool | ImageValue | Closure
+type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App | Assign | Seq | Show | Read | Blend | Flip
+type Value = int | bool | ImageValue | Closure | Loc
 
 @dataclass
 class Add():
@@ -82,6 +82,7 @@ class Not():
     subexpr: Expr
     def __str__(self) -> str:
         return f"(not {self.subexpr})"
+
 @dataclass
 class Eq():
     left: Expr
@@ -105,7 +106,7 @@ class If():
         return f"(if {self.cond} then {self.then} else {self._else})"
 
 @dataclass
-class LetFun():
+class Letfun():
     name: str
     param: str
     bodyexpr: Expr
@@ -142,12 +143,55 @@ class Merge():
     def __str__(self) -> str:
         return f"(merge {self.left} and {self.right})"
 
+# Adding 2 new extensions for milestone 3
+@dataclass
+class Blend():
+    im1: Expr
+    im2: Expr
+    alpha: float
+    def __str__(self) -> str:
+        return f"(blend {self.im1} and {self.im2})"
+
+
+@dataclass
+class Flip():
+    subexpr: Expr
+    def __str__(self) -> str:
+        return f"(flip {self.subexpr})"
+
 
 @dataclass
 class Rotate():
     subexpr: Expr
     def __str__(self) -> str:
         return f"(Rotate {self.subexpr} by 90 degrees)"
+
+@dataclass  
+class Assign():
+    name: str
+    expr: Expr
+    def __str__(self) -> str:
+        return f"({self.name} := {self.expr})"
+
+@dataclass
+class Seq():
+    left: Expr
+    right: Expr
+    def __str__(self) -> str:
+        return f"({self.left} ; {self.right})"
+
+@dataclass
+class Show():
+    subexpr: Expr
+    def __str__(self) -> str:
+        return f"(show {self.subexpr})"
+
+@dataclass
+class Read():
+    def __str__(self) -> str:
+        return "read"
+
+
 
 type Binding[V] = tuple[str,V]  # this tuple type is always a pair
 type Env[V] = tuple[Binding[V], ...] # this tuple type has arbitrary length 
@@ -180,6 +224,16 @@ def lookupEnv[V](name: str, env: Env[V]) -> (V | None) :
         case _ :
             return None        
 
+
+# model memory locations as (mutable) singleton lists
+type Loc[V] = list[V] # always a singleton list
+def newLoc[V](value: V) -> Loc[V]:
+    return [value]
+def getLoc[V](loc: Loc[V]) -> V:
+    return loc[0]
+def setLoc[V](loc: Loc[V], value: V) -> None:
+    loc[0] = value
+
 class EvalError(Exception):
     pass
 
@@ -188,7 +242,7 @@ def eval(e: Expr) -> Value:
     return evalInEnv((), e)
 
 
-def evalInEnv(env: Env[int], e:Expr) -> Value:
+def evalInEnv(env: Env[Loc[Value]], e:Expr) -> Value:
     match e:
 
         case Add(l,r):
@@ -297,16 +351,17 @@ def evalInEnv(env: Env[int], e:Expr) -> Value:
                     raise EvalError("equal on incorrec type")
 
         case Name(n):
-            v = lookupEnv(n, env)
-            if v is None:
+            l = lookupEnv(n, env)
+            if l is None:
                 raise EvalError(f"unbound name {n}")
-            return v
+            return getLoc(l)
 
-        case Let(n,d,b):
+
+        case Let(n, d, b):
             v = evalInEnv(env, d)
-            newEnv = extendEnv(n, v, env)
+            l = newLoc(v)
+            newEnv = extendEnv(n, l, env)
             return evalInEnv(newEnv, b)
-
         case Lt(l, r):
             match (evalInEnv(env, l), evalInEnv(env, r)):
                 case (bool(), _) | (_, bool()):
@@ -326,18 +381,20 @@ def evalInEnv(env: Env[int], e:Expr) -> Value:
                 case _:
                     raise EvalError("if condition must be a boolean")
 
-        case LetFun(n,p,b,i):
-            c = Closure(p,b,env)
-            newEnv = extendEnv(n,c,env)
-            c.env = newEnv    
-            return evalInEnv(newEnv,i)
+        case Letfun(n, p, b, i):
+            c = Closure(p, b, env)
+            l = newLoc(c)
+            newEnv = extendEnv(n, l, env)
+            c.env = newEnv  
+            return evalInEnv(newEnv, i)
 
         case App(f,a):
             fun = evalInEnv(env,f)
             arg = evalInEnv(env,a)
             match fun:
                 case Closure(p,b,cenv):
-                    newEnv = extendEnv(p,arg,cenv) 
+                    l = newLoc(arg)
+                    newEnv = extendEnv(p,l,cenv) 
                     return evalInEnv(newEnv,b)
                 case _:
                     raise EvalError("application of non-function")
@@ -365,6 +422,58 @@ def evalInEnv(env: Env[int], e:Expr) -> Value:
                     return ImageValue(image.rotate(90))
                 case _:
                     raise EvalError("rotate requires an image")
+
+        case Blend(l, r, a):
+            match (evalInEnv(env, l), evalInEnv(env, r), evalInEnv(env, a)):
+                case (ImageValue(lv), ImageValue(rv), int(av)):
+                    if lv.size != rv.size:
+                        raise EvalError("same size required")
+                    alpha = av / 100
+                    out = pimage.blend(lv.convert('RGBA'), rv.convert('RGBA'), alpha)
+                    return ImageValue(out)
+                case _:
+                    raise EvalError("blend requires two images and an integer alpha (0-100)") 
+
+        case Flip(a):
+            match evalInEnv(env, a):
+                case (ImageValue(av)):
+                    return ImageValue(av.transpose(pimage.FLIP_LEFT_RIGHT))
+                case _:
+                    raise EvalError("image required")
+
+        # End of Image cases -----------------------------------
+
+        case Seq(e1, e2):
+            evalInEnv(env, e1)
+            return evalInEnv(env, e2)
+        
+        case Assign(n, e):
+            l = lookupEnv(n, env)
+            if l is None:
+                raise EvalError(f"unbound name {n}")
+            if isinstance(getLoc(l), Closure):
+                raise EvalError(f"cannot assign to function {n}")
+            v = evalInEnv(env, e)
+            setLoc(l, v)
+            return v
+
+        case Show(e):
+            v = evalInEnv(env, e)
+            match v:
+                case bool(b):
+                    print(b)
+                case int(i):
+                    print(i)
+                case ImageValue(img):
+                    img.show()
+            return v
+        case Read():
+            try:
+                return int(input("enter int: "))
+            except ValueError:
+                raise EvalError("read: not an integer")
+
+
 '''
 a = (Sub(Lit(10) , True))
 print(a)
@@ -426,5 +535,8 @@ run(Let("x", ImageLit("images/cutephoto.jpg"), Rotate(Name("x"))))
 
 # test merging two images
 #run(Merge(ImageLit("images/cutephoto.jpg"), ImageLit("images/pfp.jpg"))) '''
+
+#?if_expr: "if" expr "then" expr "else" assign_expr -> if_expr
+#        | or_expr
 #ID: /(?!img$)(?!rotate$)(?!merge$)(?!true$)(?!false$)[a-zA-Z_][a-zA-Z0-9_]*/
 

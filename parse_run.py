@@ -1,4 +1,12 @@
-from interp import Add, Sub, Mul, Div, Neg, Lit, Let, Name, ImageLit, ImageValue, Merge, Rotate, And, Or, Not, Eq, Lt, If, LetFun, App, run, Expr
+#from interp import Add, Sub, Mul, Div, Neg, Lit, Let, Name, ImageLit, ImageValue, Merge, Rotate, And, Or, Not, Eq, Lt, If, Letfun, App, run, Expr
+
+from interp import Expr, Lit, Add, Sub, Mul, Div, Neg, And, Or, Not, \
+                   Let, Name, Eq, Lt, If, Letfun, App, \
+                   Assign, Seq, Show, Read, \
+                   ImageLit, Merge, Rotate, Blend, Flip, \
+                   ImageValue, Closure, EvalError, \
+                   eval, evalInEnv, run, \
+                   newLoc, getLoc, setLoc
 
 from lark import Lark, Token, ParseTree, Transformer
 from lark.exceptions import VisitError
@@ -51,6 +59,8 @@ class ToExpr(Transformer[Token,Expr]):
             return Lit(True)
         if name == "false":
             return Lit(False)
+        if name == "read":
+            return Read()
         return Name(name)
 
     def int_lit(self,args:tuple[Token]) -> Expr:
@@ -69,7 +79,7 @@ class ToExpr(Transformer[Token,Expr]):
         return Merge(args[0], args[1])
     def rotate_expr(self, args) -> ImageValue:
         return Rotate(args[0])
-    
+
     def and_e(self, args) -> Expr:
         return And(args[0], args[1])
     def or_e(self, args) -> Expr:
@@ -81,12 +91,23 @@ class ToExpr(Transformer[Token,Expr]):
     def lt(self, args) -> Expr:
         return Lt(args[0], args[1])
 
+    def seq(self, args) -> Expr:
+        return Seq(args[0], args[1])
+    def assign(self, args) -> Expr:
+        return Assign(args[0].value, args[1])
+    def show_e(self, args) -> Expr:
+        return Show(args[0])
+    def blend_expr(self, args) -> Expr:
+        return Blend(args[0], args[1], args[2])
+    def flip_expr(self, args) -> Expr:
+        return Flip(args[0])
 
     def letfun_expr(self,args:tuple[Token,Token,Expr,Expr]) -> Expr:
-        return LetFun(args[0].value,args[1].value,args[2],args[3])
+        return Letfun(args[0].value,args[1].value,args[2],args[3])
     def app(self,args:tuple[Expr,Expr]) -> Expr:
         return App(args[0], args[1])
-    def _ambig(self,_) -> Expr:    # ambiguity marker
+
+    def _ambig(self,args) -> Expr:    # ambiguity marker
         raise AmbiguousParse()
 
 
@@ -117,37 +138,66 @@ def parse_and_run(s: str):
     except ParseError as e:
         print("parse error:", e)
 
+def just_parse(s: str):
+    try:
+        t = parse(s)
+        return genAST(t)
+    except(ParseError, AmbiguousParse):
+        return None
+
+def driver():
+    lines = []
+    print("Enter expression (blank line to evaluate, Ctrl-D to quit):")
+    while True:
+        try:
+            line = input("  ")
+            if line == "":
+                if lines:
+                    parse_and_run(" ".join(lines))
+                    lines = []
+            else:
+                lines.append(line)
+        except EOFError:
+            break
+
 #CREDIT TO PROF YAO LI
 # Thank you for providing code strcuture 
 # to work off of and for guiding us through
 #class so we can understand it. 
 
 
-# ₊✩‧₊˚౨ৎ˚₊✩‧₊ CORE ₊✩‧₊˚౨ৎ˚₊✩‧₊
-parse_and_run("1 + 2 * 3")
-parse_and_run("(10 - 4) / 2")
-parse_and_run("let x = 5 in x + x end")
 
-#₊✩‧₊˚౨ৎ˚₊✩‧₊ BOOL & CMP ₊✩‧₊˚౨ৎ˚₊✩‧₊ 
-parse_and_run("true || false")
-parse_and_run("!false && true")
-parse_and_run("3 == 3")
-parse_and_run("2 < 5")
-parse_and_run("if 3 < 10 then 42 else 0")
+def main():
+    # ₊✩‧₊˚౨ৎ˚₊✩‧₊ CORE ₊✩‧₊˚౨ৎ˚₊✩‧₊
+    parse_and_run("1 + 2 * 3")
+    parse_and_run("(10 - 4) / 2")
+    parse_and_run("let x = 5 in x + x end")
 
-
-# ₊✩‧₊˚౨ৎ˚₊✩‧₊ FUNCTIONS ₊✩‧₊˚౨ৎ˚₊✩‧₊
-parse_and_run("letfun double(x) = x + x in double(7) end")
-parse_and_run("letfun square(n) = n * n in square(5) end")
-parse_and_run("let x = 10 in letfun add(y) = x + y in add(5) end end")
+    #₊✩‧₊˚౨ৎ˚₊✩‧₊ BOOL & CMP ₊✩‧₊˚౨ৎ˚₊✩‧₊ 
+    parse_and_run("true || false")
+    parse_and_run("!false && true")
+    parse_and_run("3 == 3")
+    parse_and_run("2 < 5")
+    parse_and_run("if 3 < 10 then 42 else 0")
 
 
-# ₊✩‧₊˚౨ৎ˚₊✩‧₊ IMAGES ₊✩‧₊˚౨ৎ˚₊✩‧₊
-parse_and_run('img("images/cutephoto.jpg")')
-parse_and_run('rotate[img("images/cutephoto.jpg")]')
-parse_and_run('merge[img("images/cutephoto.jpg"), img("images/cutephoto.jpg")]')
-parse_and_run('let pic = img("images/cutephoto.jpg") in rotate[pic] end')
-parse_and_run('letfun spin(p) = rotate[p] in spin(img("images/cutephoto.jpg")) end')
-parse_and_run('letfun rot180(p) = rotate[rotate[p]] in rot180(img("images/cutephoto.jpg")) end')
-parse_and_run('let a = img("images/cutephoto.jpg") in rotate[merge[a, a]] end')
-parse_and_run('if true then rotate[img("images/cutephoto.jpg")] else img("images/cutephoto.jpg")')
+    # ₊✩‧₊˚౨ৎ˚₊✩‧₊ FUNCTIONS ₊✩‧₊˚౨ৎ˚₊✩‧₊
+    parse_and_run("letfun double(x) = x + x in double(7) end")
+    parse_and_run("letfun square(n) = n * n in square(5) end")
+    parse_and_run("let x = 10 in letfun add(y) = x + y in add(5) end end")
+
+
+    # ₊✩‧₊˚౨ৎ˚₊✩‧₊ IMAGES ₊✩‧₊˚౨ৎ˚₊✩‧₊
+    parse_and_run('img("images/cutephoto.jpg")')
+    parse_and_run('rotate[img("images/cutephoto.jpg")]')
+    parse_and_run('merge[img("images/cutephoto.jpg"), img("images/cutephoto.jpg")]')
+    parse_and_run('let pic = img("images/cutephoto.jpg") in rotate[pic] end')
+    parse_and_run('letfun spin(p) = rotate[p] in spin(img("images/cutephoto.jpg")) end')
+    parse_and_run('letfun rot180(p) = rotate[rotate[p]] in rot180(img("images/cutephoto.jpg")) end')
+    parse_and_run('let a = img("images/cutephoto.jpg") in rotate[merge[a, a]] end')
+    parse_and_run('if true then rotate[img("images/cutephoto.jpg")] else img("images/cutephoto.jpg")')
+
+from parse_run import parse
+
+print(parse("show x"))
+print(parse("show(x)"))
