@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from PIL import Image as pimage
 
-type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App | Assign | Seq | Show | Read | Blend | Flip
+type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App | Assign | Seq | Show | Read | Transparent | Flip
 type Value = int | bool | ImageValue | Closure | Loc
 
 @dataclass
@@ -145,12 +145,11 @@ class Merge():
 
 # Adding 2 new extensions for milestone 3
 @dataclass
-class Blend():
-    im1: Expr
-    im2: Expr
+class Transparent():
+    im: Expr
     alpha: float
     def __str__(self) -> str:
-        return f"(blend {self.im1} and {self.im2})"
+        return f"(make {self.im} transparent by {self.alpha})"
 
 
 @dataclass
@@ -422,17 +421,21 @@ def evalInEnv(env: Env[Loc[Value]], e:Expr) -> Value:
                     return ImageValue(image.rotate(90))
                 case _:
                     raise EvalError("rotate requires an image")
+    
+        case Transparent(i, a):
+            match (evalInEnv(env, i), evalInEnv(env, a)):
+                case (ImageValue(iv), int(av)):
+                    if av < 0 or av > 100:
+                        raise EvalError("alpha must be between 0 through 100")
 
-        case Blend(l, r, a):
-            match (evalInEnv(env, l), evalInEnv(env, r), evalInEnv(env, a)):
-                case (ImageValue(lv), ImageValue(rv), int(av)):
-                    if lv.size != rv.size:
-                        raise EvalError("same size required")
                     alpha = av / 100
-                    out = pimage.blend(lv.convert('RGBA'), rv.convert('RGBA'), alpha)
+                    out = iv.convert("RGBA")
+                    out.putalpha(int(255 * alpha))
+
                     return ImageValue(out)
+
                 case _:
-                    raise EvalError("blend requires two images and an integer alpha (0-100)") 
+                    raise EvalError("transparency requires image and int")
 
         case Flip(a):
             match evalInEnv(env, a):
@@ -535,8 +538,3 @@ run(Let("x", ImageLit("images/cutephoto.jpg"), Rotate(Name("x"))))
 
 # test merging two images
 #run(Merge(ImageLit("images/cutephoto.jpg"), ImageLit("images/pfp.jpg"))) '''
-
-#?if_expr: "if" expr "then" expr "else" assign_expr -> if_expr
-#        | or_expr
-#ID: /(?!img$)(?!rotate$)(?!merge$)(?!true$)(?!false$)[a-zA-Z_][a-zA-Z0-9_]*/
-

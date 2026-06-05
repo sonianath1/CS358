@@ -15,10 +15,8 @@
 ?assign_expr: ID ":=" assign_expr -> assign
             | show_expr
 
-?show_expr: "show" "(" expr ")" -> show_e
-          | "show" assign_expr -> show_e
+?show_expr: "show" assign_expr -> show_e
           | if_expr
-
 
 ?if_expr: "if" expr "then" expr "else" assign_expr -> if_expr
         | or_expr
@@ -67,5 +65,5 @@
      | "img" "(" STRING ")" -> img_lit
      | "rotate" "[" expr "]" -> rotate_expr
      | "merge" "[" expr "," expr "]" -> merge_expr
-     | "blend" "[" expr "," expr "," expr "]" -> blend_expr
+     | "transparent" "[" expr "," expr "]" -> transparent_expr
      | "flip" "[" expr "]" -> flip_expr
