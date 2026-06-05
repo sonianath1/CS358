@@ -1,7 +1,7 @@
 from interp import Expr, Lit, Add, Sub, Mul, Div, Neg, And, Or, Not, \
         Let, Name, Eq, Lt, If, Letfun, App, \
         Assign, Seq, Show, Read, \
-        ImageLit, Merge, Rotate, Transparent, Flip, \
+        ImageLit, Merge, Rotate, Contrast, Flip, \
         ImageValue, Closure, EvalError, \
         eval, evalInEnv, run, \
         newLoc, getLoc, setLoc
@@ -95,8 +95,8 @@ class ToExpr(Transformer[Token,Expr]):
         return Assign(args[0].value, args[1])
     def show_e(self, args) -> Expr:
         return Show(args[0])
-    def transparent_expr(self, args) -> Expr:
-        return Transparent(args[0], args[1])
+    def contrast_expr(self, args) -> Expr:
+        return Contrast(args[0], args[1])
     def flip_expr(self, args) -> Expr:
         return Flip(args[0])
 
@@ -238,14 +238,13 @@ def main():
     parse_and_run('show flip[img("images/cutephoto.jpg")]')
 
     parse_and_run(
-            'show transparent[img("images/cutephoto.jpg"), 50]'
+            'show contrast[img("images/cutephoto.jpg"), 50]'
             )
 
     # ₊✩‧₊˚౨ৎ˚₊✩‧₊ REQUIRED SHOW + READ DEMO ₊✩‧₊˚౨ৎ˚₊✩‧₊
-    # User enters transparent percentage (0-100)
+    # User enters contrast percentage (0-100)
     parse_and_run(
-            'show transparent[img("images/cutephoto.jpg"), read]'
+            'show contrast[img("images/cutephoto.jpg"), read]'
             )
-
 if __name__ == "__main__":
     main()

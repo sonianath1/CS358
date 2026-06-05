@@ -65,5 +65,5 @@
      | "img" "(" STRING ")" -> img_lit
      | "rotate" "[" expr "]" -> rotate_expr
      | "merge" "[" expr "," expr "]" -> merge_expr
-     | "transparent" "[" expr "," expr "]" -> transparent_expr
+     | "contrast" "[" expr "," expr "]" -> contrast_expr
      | "flip" "[" expr "]" -> flip_expr

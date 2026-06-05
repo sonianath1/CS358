@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from PIL import Image as pimage
 
-type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App | Assign | Seq | Show | Read | Transparent | Flip
+type Expr = Add | Sub | Mul | Div | Neg | Lit | Let | Name | ImageLit | Merge | Rotate | And | Or | Not | Eq | Lt | If | LetFun | App | Assign | Seq | Show | Read | Contrast | Flip
 type Value = int | bool | ImageValue | Closure | Loc
 
 @dataclass
@@ -145,11 +145,11 @@ class Merge():
 
 # Adding 2 new extensions for milestone 3
 @dataclass
-class Transparent():
+class Contrast():
     im: Expr
-    alpha: float
+    pixel: int
     def __str__(self) -> str:
-        return f"(make {self.im} transparent by {self.alpha})"
+        return f"(translate pixels by {self.pixel})"
 
 
 @dataclass
@@ -422,20 +422,18 @@ def evalInEnv(env: Env[Loc[Value]], e:Expr) -> Value:
                 case _:
                     raise EvalError("rotate requires an image")
     
-        case Transparent(i, a):
+        case Contrast(i, a):
             match (evalInEnv(env, i), evalInEnv(env, a)):
-                case (ImageValue(iv), int(av)):
+                case (ImageValue(im), int(av)):
                     if av < 0 or av > 100:
-                        raise EvalError("alpha must be between 0 through 100")
-
-                    alpha = av / 100
-                    out = iv.convert("RGBA")
-                    out.putalpha(int(255 * alpha))
+                        raise EvalError("pixel int must be between 0 through 100")
+                    
+                    out = im.point(lambda i: i * av)
 
                     return ImageValue(out)
 
                 case _:
-                    raise EvalError("transparency requires image and int")
+                    raise EvalError("point requires image and int")
 
         case Flip(a):
             match evalInEnv(env, a):
